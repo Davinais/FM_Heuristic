@@ -1,0 +1,8 @@
+# Builds
+*.d
+*.o
+
+*.log
+
+# Binary
+fm
