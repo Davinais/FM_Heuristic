@@ -15,9 +15,9 @@ public:
     Partitioner(fstream& inFile) :
         _cutSize(0), _netNum(0), _cellNum(0), _maxPinNum(0), _bFactor(0),
         _accGain(0), _maxAccGain(0), _iterNum(0) {
-        parseInput(inFile);
         _partSize[0] = 0;
         _partSize[1] = 0;
+        parseInput(inFile);
     }
     ~Partitioner() {
         clear();
@@ -33,6 +33,11 @@ public:
     // modify method
     void parseInput(fstream& inFile);
     void partition();
+    void calc_initial_gain();
+    void update_gain(Node *base_node);
+    void update_max_cell();
+    void insert_to_blist(Node *ins_node);
+    void remove_from_blist(Node *rm_node);
 
     // member functions about reporting
     void printSummary() const;

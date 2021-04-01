@@ -19,6 +19,18 @@ public:
     Node* getPrev() const   { return _prev; }
     Node* getNext() const   { return _next; }
 
+    // Helper functinos
+    static void unlink(Node* target) {
+        if (target->getPrev()) {
+            target->getPrev()->setNext(target->getNext());
+        }
+        if (target->getNext()) {
+            target->getNext()->setPrev(target->getPrev());
+        }
+        target->setPrev(NULL);
+        target->setNext(NULL);
+    }
+
     // Set functions
     void setId(const int& id) { _id = id; }
     void setPrev(Node* prev)  { _prev = prev; }

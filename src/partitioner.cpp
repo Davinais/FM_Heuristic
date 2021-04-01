@@ -19,6 +19,8 @@ void Partitioner::parseInput(fstream& inFile)
     inFile >> str;
     _bFactor = stod(str);
 
+    bool initial_part = 0;
+
     // Set up whole circuit
     while (inFile >> str) {
         if (str == "NET") {
@@ -43,6 +45,12 @@ void Partitioner::parseInput(fstream& inFile)
                         _netArray[netId]->addCell(cellId);
                         ++_cellNum;
                         tmpCellName = cellName;
+
+                        // Set initial part, to make initial cut size smaller,
+                        // we try to put all new cells from a net in the same part
+                        _cellArray[cellId]->setPart(initial_part);
+                        _netArray[netId]->incPartCount(initial_part);
+                        ++_partSize[initial_part];
                     }
                     // an existed cell
                     else {
@@ -53,10 +61,13 @@ void Partitioner::parseInput(fstream& inFile)
                             _cellArray[cellId]->incPinNum();
                             _netArray[netId]->addCell(cellId);
                             tmpCellName = cellName;
+
+                            _netArray[netId]->incPartCount(_cellArray[cellId]->getPart());
                         }
                     }
                 }
             }
+            initial_part = !initial_part;
             ++_netNum;
         }
     }
@@ -65,7 +76,207 @@ void Partitioner::parseInput(fstream& inFile)
 
 void Partitioner::partition()
 {
+    int min_req_size = static_cast<int>(_cellNum * _bFactor);
 
+    for(auto& net : _netArray) {
+        if ((net->getPartCount(0) != 0) && (net->getPartCount(1) != 0)) {
+            ++_cutSize;
+        }
+    }
+
+    do {
+        ++_iterNum;
+        calc_initial_gain();
+
+        while(_maxGainCell != NULL) {
+            Cell *cell = _cellArray[_maxGainCell->getId()];
+            update_gain(_maxGainCell);
+        }
+        cout << "Best Move " << _bestMoveNum << " with Acc gain " << _maxAccGain << endl;
+        cout << "=============================================" << endl;
+
+        while(_moveStack.size() > _bestMoveNum) {
+            Cell *mv_cell = _cellArray[_moveStack.back()];
+            bool from_part = mv_cell->getPart();
+            bool to_part = !from_part;
+
+            mv_cell->move();
+            --_partSize[from_part];
+            ++_partSize[to_part];
+            for(auto& net_id : mv_cell->getNetList()) {
+                _netArray[net_id]->decPartCount(from_part);
+                _netArray[net_id]->incPartCount(to_part);
+            }
+            _moveStack.pop_back();
+        }
+        _moveStack.clear();
+
+        // _maxAccGain at least 0, so no need to worry if cut size would become larger
+        _cutSize -= _maxAccGain;
+    } while(_maxAccGain > 0);
+}
+
+void Partitioner::calc_initial_gain() {
+    _unlockNum[0] = _partSize[0];
+    _unlockNum[1] = _partSize[1];
+
+    _moveNum = 0;
+    _bestMoveNum = 0;
+    _accGain = 0;
+    _maxAccGain = 0;
+
+    for(auto& cell : _cellArray) {
+        cell->unlock();
+        cell->setGain(0);
+
+        bool from_part = cell->getPart();
+        bool to_part = !from_part;
+        for(auto& net_id : cell->getNetList()) {
+            if (_netArray[net_id]->getPartCount(from_part) == 1) {
+                cell->incGain();
+            }
+            if (_netArray[net_id]->getPartCount(to_part) == 0) {
+                cell->decGain();
+            }
+        }
+        insert_to_blist(cell->getNode());
+    }
+
+    update_max_cell();
+}
+
+void Partitioner::update_gain(Node *base_node) {
+    Cell *base_cell = _cellArray[base_node->getId()];
+    bool from_part = base_cell->getPart();
+    bool to_part = !from_part;
+
+    // Move the base cell and lock it
+    remove_from_blist(base_node);
+    base_cell->move();
+    --_partSize[from_part];
+    ++_partSize[to_part];
+    base_cell->lock();
+    --_unlockNum[from_part];
+
+    _moveNum++;
+    _moveStack.push_back(base_node->getId());
+
+    _accGain += base_cell->getGain();
+    if (_accGain > _maxAccGain) {
+        _maxAccGain = _accGain;
+        _bestMoveNum = _moveNum;
+    }
+
+    for(auto& net_id : base_cell->getNetList()) {
+        Net *net = _netArray[net_id];
+
+        for(auto& cell_id : net->getCellList()) {
+            Cell *cell = _cellArray[cell_id];
+            if (cell->getLock() == false) {
+                remove_from_blist(cell->getNode());
+            }
+        }
+
+        if (net->getPartCount(to_part) == 0) {
+            for(auto& cell_id : net->getCellList()) {
+                Cell *cell = _cellArray[cell_id];
+                if (cell->getLock() == false) {
+                    cell->incGain();
+                }
+            }
+        }
+        else if (net->getPartCount(to_part) == 1) {
+            for(auto& cell_id : net->getCellList()) {
+                Cell *cell = _cellArray[cell_id];
+                if ((cell->getPart() == to_part) && (cell->getLock() == false)) {
+                    cell->decGain();
+                }
+            }
+        }
+
+        net->decPartCount(from_part);
+        net->incPartCount(to_part);
+
+        if (net->getPartCount(from_part) == 0) {
+            for(auto& cell_id : net->getCellList()) {
+                Cell *cell = _cellArray[cell_id];
+                if (cell->getLock() == false) {
+                    cell->decGain();
+                }
+            }
+        }
+        else if (net->getPartCount(from_part) == 1) {
+            for(auto& cell_id : net->getCellList()) {
+                Cell *cell = _cellArray[cell_id];
+                if ((cell->getPart() == from_part) && (cell->getLock() == false)) {
+                    cell->incGain();
+                }
+            }
+        }
+
+        for(auto& cell_id : net->getCellList()) {
+            Cell *cell = _cellArray[cell_id];
+            if (cell->getLock() == false) {
+                insert_to_blist(cell->getNode());
+            }
+        }
+    }
+
+    update_max_cell();
+}
+
+void Partitioner::update_max_cell() {
+    int min_req_size = static_cast<int>(_cellNum * _bFactor);
+
+    auto it_0 = _bList[0].rbegin();
+    auto it_1 = _bList[1].rbegin();
+    if ((!_bList[0].empty()) && (!_bList[1].empty())) {
+        if (it_0->first >= it_1->first) {
+            _maxGainCell = (_partSize[0] > min_req_size) ? it_0->second : it_1->second;
+        }
+        else {
+            _maxGainCell = (_partSize[1] > min_req_size) ? it_1->second : it_0->second;
+        }
+    }
+    else {
+        if ((_bList[0].empty()) && (!_bList[1].empty())) {
+            _maxGainCell = (_partSize[1] > min_req_size) ? it_1->second : NULL;
+        }
+        else if ((!_bList[0].empty()) && (_bList[1].empty())) {
+            _maxGainCell = (_partSize[0] > min_req_size) ? it_0->second : NULL;
+        }
+        else {
+            _maxGainCell = NULL;
+        }
+    }
+}
+
+void Partitioner::insert_to_blist(Node *ins_node) {
+    Cell *ins_cell = _cellArray[ins_node->getId()];
+    auto ret = _bList[ins_cell->getPart()].insert({ins_cell->getGain(), ins_node});
+    if (ret.second == false) {
+        Node *current = ret.first->second;
+        if (current->getNext()) {
+            current->getNext()->setPrev(ins_node);
+        }
+        ins_node->setNext(current->getNext());
+        ins_node->setPrev(current);
+        current->setNext(ins_node);
+    }
+}
+
+void Partitioner::remove_from_blist(Node *rm_node) {
+    Cell *rm_cell = _cellArray[rm_node->getId()];
+    if (rm_node->getPrev() == NULL) {
+        if (rm_node->getNext() == NULL) {
+            _bList[rm_cell->getPart()].erase(rm_cell->getGain());
+        }
+        else {
+            _bList[rm_cell->getPart()][rm_cell->getGain()] = rm_node->getNext();
+            rm_node->getNext()->setPrev(NULL);
+        }
+    }
+    Node::unlink(rm_node);
 }
 
 void Partitioner::printSummary() const
