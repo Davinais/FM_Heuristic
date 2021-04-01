@@ -169,54 +169,35 @@ void Partitioner::update_gain(Node *base_node) {
 
     for(auto& net_id : base_cell->getNetList()) {
         Net *net = _netArray[net_id];
+        net->decPartCount(from_part);
+        net->incPartCount(to_part);
+
+        int from_count = net->getPartCount(from_part);
+        int to_count = net->getPartCount(to_part);
 
         for(auto& cell_id : net->getCellList()) {
             Cell *cell = _cellArray[cell_id];
             if (cell->getLock() == false) {
                 remove_from_blist(cell->getNode());
-            }
-        }
 
-        if (net->getPartCount(to_part) == 0) {
-            for(auto& cell_id : net->getCellList()) {
-                Cell *cell = _cellArray[cell_id];
-                if (cell->getLock() == false) {
+                if (to_count == (0 + 1)) {
                     cell->incGain();
                 }
-            }
-        }
-        else if (net->getPartCount(to_part) == 1) {
-            for(auto& cell_id : net->getCellList()) {
-                Cell *cell = _cellArray[cell_id];
-                if ((cell->getPart() == to_part) && (cell->getLock() == false)) {
+                else if (to_count == (1 + 1)) {
+                    if (cell->getPart() == to_part) {
+                        cell->decGain();
+                    }
+                }
+
+                if (from_count == 0) {
                     cell->decGain();
                 }
-            }
-        }
-
-        net->decPartCount(from_part);
-        net->incPartCount(to_part);
-
-        if (net->getPartCount(from_part) == 0) {
-            for(auto& cell_id : net->getCellList()) {
-                Cell *cell = _cellArray[cell_id];
-                if (cell->getLock() == false) {
-                    cell->decGain();
+                else if (from_count == 1) {
+                    if (cell->getPart() == from_part) {
+                        cell->incGain();
+                    }
                 }
-            }
-        }
-        else if (net->getPartCount(from_part) == 1) {
-            for(auto& cell_id : net->getCellList()) {
-                Cell *cell = _cellArray[cell_id];
-                if ((cell->getPart() == from_part) && (cell->getLock() == false)) {
-                    cell->incGain();
-                }
-            }
-        }
 
-        for(auto& cell_id : net->getCellList()) {
-            Cell *cell = _cellArray[cell_id];
-            if (cell->getLock() == false) {
                 insert_to_blist(cell->getNode());
             }
         }
