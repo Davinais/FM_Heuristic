@@ -11,7 +11,7 @@ class Node
 public:
     // Constructor and destructor
     Node(const int& id) :
-        _id(id), _prev(NULL), _next(NULL) { }
+        _id(id), _prev(nullptr), _next(nullptr) { }
     ~Node() { }
 
     // Basic access methods
@@ -27,8 +27,8 @@ public:
         if (target->getNext()) {
             target->getNext()->setPrev(target->getPrev());
         }
-        target->setPrev(NULL);
-        target->setNext(NULL);
+        target->setPrev(nullptr);
+        target->setNext(nullptr);
     }
 
     // Set functions

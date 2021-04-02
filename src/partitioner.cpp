@@ -88,7 +88,7 @@ void Partitioner::partition()
         ++_iterNum;
         calc_initial_gain();
 
-        while(_maxGainCell != NULL) {
+        while(_maxGainCell != nullptr) {
             Cell *cell = _cellArray[_maxGainCell->getId()];
             update_gain(_maxGainCell);
         }
@@ -223,13 +223,13 @@ void Partitioner::update_max_cell() {
     }
     else {
         if ((_bList[0].empty()) && (!_bList[1].empty())) {
-            _maxGainCell = (_partSize[1] > min_req_size) ? it_1->second : NULL;
+            _maxGainCell = (_partSize[1] > min_req_size) ? it_1->second : nullptr;
         }
         else if ((!_bList[0].empty()) && (_bList[1].empty())) {
-            _maxGainCell = (_partSize[0] > min_req_size) ? it_0->second : NULL;
+            _maxGainCell = (_partSize[0] > min_req_size) ? it_0->second : nullptr;
         }
         else {
-            _maxGainCell = NULL;
+            _maxGainCell = nullptr;
         }
     }
 }
@@ -250,13 +250,13 @@ void Partitioner::insert_to_blist(Node *ins_node) {
 
 void Partitioner::remove_from_blist(Node *rm_node) {
     Cell *rm_cell = _cellArray[rm_node->getId()];
-    if (rm_node->getPrev() == NULL) {
-        if (rm_node->getNext() == NULL) {
+    if (rm_node->getPrev() == nullptr) {
+        if (rm_node->getNext() == nullptr) {
             _bList[rm_cell->getPart()].erase(rm_cell->getGain());
         }
         else {
             _bList[rm_cell->getPart()][rm_cell->getGain()] = rm_node->getNext();
-            rm_node->getNext()->setPrev(NULL);
+            rm_node->getNext()->setPrev(nullptr);
         }
     }
     Node::unlink(rm_node);
