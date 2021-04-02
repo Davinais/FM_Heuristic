@@ -110,6 +110,8 @@ void Partitioner::partition()
             _moveStack.pop_back();
         }
         _moveStack.clear();
+        _bList[0].clear();
+        _bList[1].clear();
 
         // _maxAccGain at least 0, so no need to worry if cut size would become larger
         _cutSize -= _maxAccGain;
